@@ -1,0 +1,11 @@
+<!-- ClickHouse Keeper Base Configuration (Template)
+     =================================================
+     This file is a reference/template. The actual configs used by each keeper
+     node are in nodes/keeper{1,2,3}.xml — each with a unique server_id.
+
+     The keeper image does NOT support config.d/ merging like the server image,
+     so each node needs a complete standalone config file.
+
+     See nodes/keeper1.xml for the fully commented version.
+-->
+

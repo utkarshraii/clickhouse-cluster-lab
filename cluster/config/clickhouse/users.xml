@@ -1,0 +1,124 @@
+<!-- ClickHouse Users & Profiles Configuration
+     ==========================================
+     Controls WHO can connect and WHAT they can do.
+
+     Three layers of access control:
+     1. Profiles — settings presets (memory limits, timeouts, readonly mode)
+     2. Users    — credentials + which profile they use
+     3. Quotas   — rate limiting by time interval
+
+     IMPORTANT: In production, use SQL-based access control instead:
+       SET allow_experimental_access_control = 1;
+       CREATE USER ... IDENTIFIED BY ...;
+       GRANT SELECT ON db.* TO user;
+     XML-based config shown here for learning purposes.
+-->
+<clickhouse>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         PROFILES
+         ════════════════════════════════════════════════════════════════
+         A profile is a named set of settings. Users reference a profile.
+         Think of it like a "role" for query resource limits. -->
+    <profiles>
+
+        <!-- Default profile: applied to all users unless overridden -->
+        <default>
+            <!-- max_memory_usage: Per-query memory limit for this profile.
+                 Overrides the server-level setting in config.xml.
+                 If a user's query exceeds this, it's killed.
+                 Set per-profile so analysts get less than ETL pipelines. -->
+            <max_memory_usage>10000000000</max_memory_usage>
+
+            <!-- max_execution_time: Query timeout in seconds.
+                 0 = no limit. In production, ALWAYS set a limit.
+                 Without this, a bad JOIN can run for hours, consuming resources.
+                 300s (5 min) is generous for most OLAP queries. -->
+            <max_execution_time>300</max_execution_time>
+
+            <!-- max_rows_to_read: Safety limit on full table scans.
+                 0 = unlimited. Set this to prevent accidental SELECT * on huge tables. -->
+            <max_rows_to_read>0</max_rows_to_read>
+
+            <!-- load_balancing: How Distributed queries pick which replica to query.
+                 'random'       — pick a random replica (good default)
+                 'nearest_hostname' — prefer replicas with similar hostnames
+                 'in_order'     — try first replica, fallback to second
+                 'first_or_random' — try first, then random among rest -->
+            <load_balancing>random</load_balancing>
+
+            <!-- readonly: Controls query permissions.
+                 0 = full access (SELECT, INSERT, DDL)
+                 1 = SELECT only, cannot change settings
+                 2 = SELECT only, CAN change settings (useful for BI tools that SET format) -->
+            <readonly>0</readonly>
+        </default>
+
+        <!-- Read-only profile for dashboards and BI tools -->
+        <readonly>
+            <max_memory_usage>5000000000</max_memory_usage>
+            <max_execution_time>60</max_execution_time>
+            <readonly>2</readonly>
+            <!-- allow_ddl: Explicitly disable DDL even if readonly somehow allows it -->
+            <allow_ddl>0</allow_ddl>
+        </readonly>
+
+    </profiles>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         USERS
+         ════════════════════════════════════════════════════════════════ -->
+    <users>
+
+        <!-- Default user: full access, no password (development only!)
+             In production: ALWAYS set a password or use LDAP/certificates. -->
+        <default>
+            <!-- password: empty = no password required.
+                 Use <password_sha256_hex> for hashed passwords in production. -->
+            <password></password>
+            <profile>default</profile>
+            <quota>default</quota>
+
+            <!-- networks: Which IPs can connect as this user.
+                 <ip>::/0</ip> = allow from anywhere (IPv4 and IPv6).
+                 In production, restrict to your application servers. -->
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+
+            <!-- access_management: Allow this user to CREATE/ALTER other users via SQL.
+                 1 = yes. Required for SQL-based access control. -->
+            <access_management>1</access_management>
+        </default>
+
+    </users>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         QUOTAS
+         ════════════════════════════════════════════════════════════════
+         Rate limiting by time interval. Prevents a single user from
+         monopolizing the cluster.
+
+         Quota violations return:
+         "Quota for user X has been exceeded: queries = N/M" -->
+    <quotas>
+        <default>
+            <interval>
+                <!-- duration: Quota window in seconds. 3600 = 1 hour. -->
+                <duration>3600</duration>
+                <!-- queries: Max queries per interval. 0 = unlimited. -->
+                <queries>0</queries>
+                <!-- errors: Max failed queries per interval. 0 = unlimited. -->
+                <errors>0</errors>
+                <!-- result_rows: Max rows returned per interval. 0 = unlimited. -->
+                <result_rows>0</result_rows>
+                <!-- read_rows: Max rows scanned per interval. 0 = unlimited.
+                     This is the real protection — limits how much work a user can cause. -->
+                <read_rows>0</read_rows>
+                <!-- execution_time: Max total query time per interval. 0 = unlimited. -->
+                <execution_time>0</execution_time>
+            </interval>
+        </default>
+    </quotas>
+
+</clickhouse>

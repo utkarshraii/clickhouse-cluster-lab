@@ -1,0 +1,99 @@
+<!-- ClickHouse Keeper Node 1 — Complete Configuration
+     ===================================================
+     Keeper is ClickHouse's built-in consensus service (replaces ZooKeeper).
+     It uses the Raft protocol for leader election and log replication.
+
+     NOTE: The keeper image does NOT merge config.d/ files like the server image.
+     Each keeper node needs a complete standalone config with its own server_id.
+-->
+<clickhouse>
+
+    <!-- Listen on all interfaces so ClickHouse nodes can reach Keeper.
+         Without this, Keeper defaults to localhost only and CH nodes get "Connection refused". -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <logger>
+        <!-- Log level: trace | debug | information | warning | error
+             Use 'information' in production, 'trace' for debugging Raft issues.
+             If Keeper misbehaves, bump to 'trace' and check /var/log/clickhouse-keeper/clickhouse-keeper.log -->
+        <level>information</level>
+        <log>/var/log/clickhouse-keeper/clickhouse-keeper.log</log>
+        <errorlog>/var/log/clickhouse-keeper/clickhouse-keeper.err.log</errorlog>
+        <!-- Max log file size before rotation (1GB). Keeper logs can grow fast under heavy DDL. -->
+        <size>1000M</size>
+        <count>3</count>
+    </logger>
+
+    <keeper_server>
+        <!-- server_id: MUST be unique across all keeper nodes and match the id
+             in raft_configuration below. If two nodes share the same server_id,
+             Raft consensus breaks — split-brain or election loops. -->
+        <server_id>1</server_id>
+
+        <!-- Keeper listens on this port for client connections (ClickHouse nodes connect here).
+             Analogous to ZooKeeper's clientPort (2181).
+             If this port is blocked, ClickHouse nodes will fail to create/replicate tables. -->
+        <tcp_port>9181</tcp_port>
+
+        <!-- Where Keeper stores its Raft log and snapshots.
+             CRITICAL: This must be on fast, reliable storage.
+             Data loss here = loss of cluster metadata (table schemas, replica state). -->
+        <log_storage_path>/var/lib/clickhouse-keeper/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse-keeper/snapshots</snapshot_storage_path>
+
+        <coordination_settings>
+            <!-- operation_timeout_ms: How long a client operation can take before timing out.
+                 Too low → spurious timeouts during heavy DDL.
+                 Too high → slow failure detection. Default: 10000 -->
+            <operation_timeout_ms>10000</operation_timeout_ms>
+
+            <!-- session_timeout_ms: If a ClickHouse node doesn't heartbeat within this window,
+                 Keeper considers it dead and releases its ephemeral nodes.
+                 Too low → false positives (node briefly busy with a merge, gets declared dead).
+                 Too high → slow failover. Default: 30000 -->
+            <session_timeout_ms>30000</session_timeout_ms>
+
+            <!-- snapshot_distance: Create a snapshot every N log entries.
+                 Snapshots allow faster recovery and let old log entries be purged.
+                 Too high → long recovery time (must replay many log entries).
+                 Too low → frequent I/O from snapshot writes.
+                 Default: 100000. For a small cluster, 10000 is fine. -->
+            <snapshot_distance>10000</snapshot_distance>
+
+            <!-- reserved_log_items: Keep this many log entries after a snapshot.
+                 A lagging follower can catch up from the log instead of needing a full snapshot.
+                 Too low → followers that lag even briefly need a full snapshot transfer.
+                 Too high → disk usage grows from retained log entries. -->
+            <reserved_log_items>5000</reserved_log_items>
+
+            <!-- raft_logs_level: Verbosity of Raft protocol logging.
+                 'information' for normal ops, 'trace' to debug split-brain or election issues. -->
+            <raft_logs_level>information</raft_logs_level>
+        </coordination_settings>
+
+        <!-- Raft cluster membership. All 3 nodes must know about each other.
+             The Raft protocol requires a majority (2 of 3) for writes.
+             If 2 nodes go down, the cluster becomes read-only (no new DDL, no replication progress). -->
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>keeper1</hostname>
+                <!-- Raft inter-node communication port (not the client port).
+                     This must be reachable between all keeper nodes. -->
+                <port>9234</port>
+            </server>
+            <server>
+                <id>2</id>
+                <hostname>keeper2</hostname>
+                <port>9234</port>
+            </server>
+            <server>
+                <id>3</id>
+                <hostname>keeper3</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+
+    </keeper_server>
+
+</clickhouse>

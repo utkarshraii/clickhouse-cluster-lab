@@ -1,0 +1,24 @@
+<!-- Per-Node Macros: Shard 1, Replica 1
+     ====================================
+     Macros are substituted into ReplicatedMergeTree ZooKeeper paths:
+
+       CREATE TABLE t ON CLUSTER ch_cluster (...)
+       ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/t', '{replica}')
+
+     Expands to: /clickhouse/tables/01/t with replica = ch-s1r1
+
+     WHY THIS MATTERS:
+     - {shard}: Groups replicas that hold the SAME data. All replicas in shard 01
+       share the same ZK path prefix, so they know to replicate from each other.
+     - {replica}: Unique ID within a shard. If two nodes have the same {replica},
+       they'll fight over the same ZK ephemeral node → replication breaks.
+
+     RULE: Every node in the cluster must have a unique (shard, replica) pair.
+-->
+<clickhouse>
+    <macros>
+        <shard>01</shard>
+        <replica>ch-s1r1</replica>
+        <cluster>ch_cluster</cluster>
+    </macros>
+</clickhouse>

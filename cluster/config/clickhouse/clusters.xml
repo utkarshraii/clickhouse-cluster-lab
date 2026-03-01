@@ -1,0 +1,67 @@
+<!-- Cluster Topology Definition
+     ============================
+     Defines the logical cluster that ClickHouse nodes form.
+     Referenced by: CREATE TABLE ... ON CLUSTER 'ch_cluster'
+     and: Distributed(..., 'ch_cluster', ...)
+
+     TOPOLOGY: 2 shards × 2 replicas = 4 nodes
+     ┌─────────────┐  ┌─────────────┐
+     │   Shard 1    │  │   Shard 2    │
+     │  ch-s1r1     │  │  ch-s2r1     │
+     │  ch-s1r2     │  │  ch-s2r2     │
+     └─────────────┘  └─────────────┘
+
+     Shards = horizontal partitioning (different data on each shard)
+     Replicas = copies within a shard (same data, for HA and read scaling)
+-->
+<clickhouse>
+
+    <remote_servers>
+
+        <!-- Cluster name: used in ON CLUSTER 'ch_cluster' -->
+        <ch_cluster>
+
+            <!-- internal_replication: CRITICAL setting.
+                 true  → INSERT goes to ONE replica; ReplicatedMergeTree handles
+                         replicating to the other replica(s) via Keeper.
+                         This is the correct setting for ReplicatedMergeTree.
+
+                 false → The Distributed table itself writes to ALL replicas.
+                         This causes duplicate data with ReplicatedMergeTree.
+                         Only use false with plain MergeTree (non-replicated).
+
+                 WHAT BREAKS: If set to false with ReplicatedMergeTree, every insert
+                 is written twice — once by the Distributed table, once by replication.
+                 You get duplicate rows. -->
+
+            <!-- Shard 1: two replicas -->
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-s1r1</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>ch-s1r2</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+
+            <!-- Shard 2: two replicas -->
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-s2r1</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>ch-s2r2</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+
+        </ch_cluster>
+
+    </remote_servers>
+
+</clickhouse>

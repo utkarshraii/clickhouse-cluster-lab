@@ -1,0 +1,234 @@
+<!-- ClickHouse Server Configuration
+     =================================
+     This is the main server-level config shared by all ClickHouse nodes.
+     Per-node differences (macros) are loaded from separate files.
+
+     MENTAL MODEL: This file controls the "engine" — how the server listens,
+     logs, manages memory, merges parts, and connects to Keeper.
+-->
+<clickhouse>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         LOGGING
+         ════════════════════════════════════════════════════════════════
+         Debugging ALWAYS starts at the logs. When something is wrong:
+         1. Check clickhouse-server.err.log for crashes/assertions
+         2. Check clickhouse-server.log for warnings
+         3. Bump level to 'trace' to see merge/replication/query details -->
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>3</count>
+        <!-- trace_log: records function-level traces for profiling.
+             Useful with system.trace_log for flamegraphs. -->
+    </logger>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         NETWORK PORTS
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- HTTP port: used by web UIs (Tabix, Play), REST API, health checks.
+         curl http://localhost:8123/?query=SELECT+1
+         If this port isn't reachable, monitoring and HTTP-based clients fail. -->
+    <http_port>8123</http_port>
+
+    <!-- Native TCP port: used by clickhouse-client, JDBC/ODBC drivers, inter-node comms.
+         This is the primary protocol — binary, fast, supports streaming.
+         If blocked, clickhouse-client cannot connect. -->
+    <tcp_port>9000</tcp_port>
+
+    <!-- Inter-server HTTP port: used for replica-to-replica data transfer.
+         When a replica fetches a part from another, it uses this port.
+         If blocked between replicas, replication stalls. -->
+    <interserver_http_port>9009</interserver_http_port>
+
+    <!-- Listen on all interfaces inside the container.
+         In production, restrict this to specific IPs. -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         CONNECTION LIMITS
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- max_connections: Total simultaneous client connections.
+         Exceeded → new connections are rejected with "Too many simultaneous connections".
+         Each connection uses ~1MB of memory for buffers.
+         Too low → clients get rejected during traffic spikes.
+         Too high → memory exhaustion from idle connections. -->
+    <max_connections>100</max_connections>
+
+    <!-- max_concurrent_queries: How many queries can execute at once.
+         Excess queries are QUEUED (not rejected) until a slot opens.
+         Too low → queries pile up in the queue, latency spikes.
+         Too high → CPU/memory contention, all queries slow down.
+         Rule of thumb: 2× number of CPU cores. -->
+    <max_concurrent_queries>50</max_concurrent_queries>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MEMORY MANAGEMENT
+         ════════════════════════════════════════════════════════════════
+         ClickHouse is memory-hungry. These settings prevent OOM kills. -->
+
+    <!-- max_memory_usage: This is a USER-LEVEL setting — configure it in users.xml
+         inside <profiles>, not here. Placing it at the top level in config.xml
+         causes ClickHouse to reject the config entirely.
+         See users.xml → <profiles><default><max_memory_usage> -->
+
+    <!-- max_server_memory_usage_ratio: Fraction of total RAM the server can use.
+         0.9 = use at most 90% of container memory.
+         The remaining 10% is for OS page cache, other processes.
+         If you set this to 1.0, the OOM killer WILL find you. -->
+    <max_server_memory_usage_ratio>0.9</max_server_memory_usage_ratio>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         CACHES
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- mark_cache_size: Cache for .mrk2 (mark) files.
+         Marks map granule numbers → byte offsets in .bin files.
+         Cache miss → disk seek to find where a granule starts.
+         Too small → repeated disk seeks, slow queries on cold data.
+         Default: 5GB. For a 2GB container, 500MB is reasonable. -->
+    <mark_cache_size>536870912</mark_cache_size>
+
+    <!-- uncompressed_cache_size: Cache for decompressed data blocks.
+         Helps when the same data is queried repeatedly.
+         Too small → data is decompressed on every query.
+         Too large → steals memory from queries. Usually 0 (disabled). -->
+    <uncompressed_cache_size>0</uncompressed_cache_size>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MERGE TREE SETTINGS (global defaults)
+         ════════════════════════════════════════════════════════════════
+         These control how the MergeTree engine manages parts.
+         Understanding parts is CRITICAL — see notes/01-architecture.md -->
+    <merge_tree>
+        <!-- max_parts_in_total: Hard limit on total parts across all partitions.
+             Exceeded → INSERT is rejected with "Too many parts".
+             This is a safety valve against part explosion from too-frequent inserts.
+             Default: 100000. If you hit this, you're inserting too frequently. -->
+        <max_parts_in_total>100000</max_parts_in_total>
+
+        <!-- parts_to_delay_insert: When active parts exceed this, INSERTs are throttled.
+             ClickHouse adds artificial delay to slow down writes, giving merges time to catch up.
+             This is a WARNING sign — you're writing faster than merging. -->
+        <parts_to_delay_insert>300</parts_to_delay_insert>
+
+        <!-- parts_to_throw_insert: When active parts exceed this, INSERTs are rejected.
+             This is the hard stop. Fix your insert batching if you hit this.
+             Common cause: inserting 1 row at a time instead of batches of 10k+. -->
+        <parts_to_throw_insert>600</parts_to_throw_insert>
+    </merge_tree>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         BACKGROUND POOLS
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- background_pool_size: Number of threads for background merges and mutations.
+         Too low → parts accumulate, eventually hitting parts_to_delay_insert.
+                    Also, must be large enough that
+                    (pool_size * concurrency_ratio) > number_of_free_entries_in_pool_to_execute_mutation (default 20).
+         Too high → merges starve query threads of CPU.
+         Default: 16. -->
+    <background_pool_size>16</background_pool_size>
+
+    <!-- background_schedule_pool_size: Threads for scheduled tasks (materialized views, etc).
+         Separate from merge pool. -->
+    <background_schedule_pool_size>4</background_schedule_pool_size>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         DATA PATHS
+         ════════════════════════════════════════════════════════════════ -->
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
+    <format_schema_path>/var/lib/clickhouse/format_schemas/</format_schema_path>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         USER DIRECTORIES
+         ════════════════════════════════════════════════════════════════
+         Tells the server where to find user definitions.
+         users_xml: reads from users.xml file
+         local_directory: SQL-created users (CREATE USER ...) stored on disk -->
+    <user_directories>
+        <users_xml>
+            <path>users.xml</path>
+        </users_xml>
+        <local_directory>
+            <path>/var/lib/clickhouse/access/</path>
+        </local_directory>
+    </user_directories>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         KEEPER CONNECTION
+         ════════════════════════════════════════════════════════════════
+         All ClickHouse nodes connect to the Keeper quorum for:
+         - Table metadata (CREATE TABLE ... ON CLUSTER)
+         - Replication coordination (which replica has which parts)
+         - Distributed DDL (ALTER, DROP across the cluster)
+
+         If Keeper is unreachable:
+         - Existing queries still work (data is local)
+         - New DDL fails
+         - Replication stalls
+         - INSERTs to ReplicatedMergeTree eventually fail -->
+    <zookeeper>
+        <node>
+            <host>keeper1</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>keeper2</host>
+            <port>9181</port>
+        </node>
+        <node>
+            <host>keeper3</host>
+            <port>9181</port>
+        </node>
+        <!-- session_timeout_ms: Must match or be less than Keeper's session_timeout_ms.
+             If this is longer than Keeper's, Keeper will expire the session before
+             ClickHouse realizes it's lost. -->
+        <session_timeout_ms>30000</session_timeout_ms>
+    </zookeeper>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         DISTRIBUTED DDL
+         ════════════════════════════════════════════════════════════════
+         When you run ALTER TABLE ... ON CLUSTER, ClickHouse creates a task
+         in this Keeper path. Each node watches and executes it.
+         If this path is wrong, ON CLUSTER commands silently do nothing. -->
+    <distributed_ddl>
+        <path>/clickhouse/task_queue/ddl</path>
+    </distributed_ddl>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         INCLUDE EXTERNAL CONFIGS
+         ════════════════════════════════════════════════════════════════
+         ClickHouse merges all XML files from these directories into the config.
+         This is how we inject per-node macros and cluster definitions
+         without duplicating the entire config.xml for each node. -->
+    <include_from>/etc/clickhouse-server/config.d/macros.xml</include_from>
+
+    <!-- Query logging — essential for debugging slow queries.
+         See notes/04-debugging-and-monitoring.md -->
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+
+    <query_thread_log>
+        <database>system</database>
+        <table>query_thread_log</table>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_thread_log>
+
+    <part_log>
+        <database>system</database>
+        <table>part_log</table>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </part_log>
+
+</clickhouse>

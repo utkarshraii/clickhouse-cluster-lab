@@ -1,0 +1,12 @@
+<!-- Override Docker's default-user.xml which restricts the default user to localhost.
+     In a cluster, nodes must connect to each other as the default user for
+     Distributed queries and replication. Allow connections from any IP. -->
+<clickhouse>
+    <users>
+        <default>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+        </default>
+    </users>
+</clickhouse>

@@ -1,0 +1,288 @@
+# ClickHouse Cluster: 2 Shards × 2 Replicas + 3 Keeper Nodes
+# ===========================================================
+#
+# Architecture:
+#   keeper1, keeper2, keeper3  — Raft consensus (metadata store)
+#   ch-s1r1, ch-s1r2           — Shard 1 (two replicas)
+#   ch-s2r1, ch-s2r2           — Shard 2 (two replicas)
+#
+# Usage:
+#   docker compose up -d          # start cluster
+#   docker compose ps             # check health
+#   docker compose logs keeper1   # debug keeper
+#   docker compose down -v        # destroy everything (including data)
+
+services:
+
+  # ══════════════════════════════════════════════════════════════
+  # CLICKHOUSE KEEPER NODES (Raft consensus cluster)
+  # ══════════════════════════════════════════════════════════════
+  # Keeper replaces ZooKeeper for ClickHouse coordination.
+  # 3 nodes = tolerates 1 failure. If 2 die, cluster goes read-only.
+
+  keeper1:
+    image: clickhouse/clickhouse-keeper:${KEEPER_VERSION:-24.8}
+    container_name: keeper1
+    hostname: keeper1
+    user: "101:101"
+    ports:
+      - "${KEEPER1_PORT:-9181}:9181"
+    volumes:
+      - keeper1_data:/var/lib/clickhouse-keeper
+      - keeper1_logs:/var/log/clickhouse-keeper
+      - ./config/keeper/nodes/keeper1.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${KEEPER_MEMORY_LIMIT:-512m}
+          cpus: "${KEEPER_CPU_LIMIT:-0.5}"
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-keeper-client -h localhost -p 9181 --query 'ruok' | grep -q imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  keeper2:
+    image: clickhouse/clickhouse-keeper:${KEEPER_VERSION:-24.8}
+    container_name: keeper2
+    hostname: keeper2
+    user: "101:101"
+    ports:
+      - "${KEEPER2_PORT:-9182}:9181"
+    volumes:
+      - keeper2_data:/var/lib/clickhouse-keeper
+      - keeper2_logs:/var/log/clickhouse-keeper
+      - ./config/keeper/nodes/keeper2.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${KEEPER_MEMORY_LIMIT:-512m}
+          cpus: "${KEEPER_CPU_LIMIT:-0.5}"
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-keeper-client -h localhost -p 9181 --query 'ruok' | grep -q imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  keeper3:
+    image: clickhouse/clickhouse-keeper:${KEEPER_VERSION:-24.8}
+    container_name: keeper3
+    hostname: keeper3
+    user: "101:101"
+    ports:
+      - "${KEEPER3_PORT:-9183}:9181"
+    volumes:
+      - keeper3_data:/var/lib/clickhouse-keeper
+      - keeper3_logs:/var/log/clickhouse-keeper
+      - ./config/keeper/nodes/keeper3.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${KEEPER_MEMORY_LIMIT:-512m}
+          cpus: "${KEEPER_CPU_LIMIT:-0.5}"
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-keeper-client -h localhost -p 9181 --query 'ruok' | grep -q imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # ══════════════════════════════════════════════════════════════
+  # CLICKHOUSE SERVER NODES
+  # ══════════════════════════════════════════════════════════════
+  # Each node gets:
+  #   - Shared config: config.xml, users.xml, clusters.xml
+  #   - Unique config: macros (shard/replica identity)
+  #
+  # Nodes wait for keepers to be healthy before starting.
+
+  ch-s1r1:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-24.8}
+    container_name: ch-s1r1
+    hostname: ch-s1r1
+    ports:
+      - "${CH_S1R1_HTTP_PORT:-8123}:8123"
+      - "${CH_S1R1_TCP_PORT:-9000}:9000"
+    volumes:
+      - ch_s1r1_data:/var/lib/clickhouse
+      - ch_s1r1_logs:/var/log/clickhouse-server
+      - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.xml:ro
+      - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+      - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
+      - ./config/clickhouse/macros/shard1-replica1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${CH_MEMORY_LIMIT:-2g}
+          cpus: "${CH_CPU_LIMIT:-1.5}"
+    depends_on:
+      keeper1:
+        condition: service_healthy
+      keeper2:
+        condition: service_healthy
+      keeper3:
+        condition: service_healthy
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  ch-s1r2:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-24.8}
+    container_name: ch-s1r2
+    hostname: ch-s1r2
+    ports:
+      - "${CH_S1R2_HTTP_PORT:-8124}:8123"
+      - "${CH_S1R2_TCP_PORT:-9001}:9000"
+    volumes:
+      - ch_s1r2_data:/var/lib/clickhouse
+      - ch_s1r2_logs:/var/log/clickhouse-server
+      - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.xml:ro
+      - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+      - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
+      - ./config/clickhouse/macros/shard1-replica2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${CH_MEMORY_LIMIT:-2g}
+          cpus: "${CH_CPU_LIMIT:-1.5}"
+    depends_on:
+      keeper1:
+        condition: service_healthy
+      keeper2:
+        condition: service_healthy
+      keeper3:
+        condition: service_healthy
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  ch-s2r1:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-24.8}
+    container_name: ch-s2r1
+    hostname: ch-s2r1
+    ports:
+      - "${CH_S2R1_HTTP_PORT:-8125}:8123"
+      - "${CH_S2R1_TCP_PORT:-9002}:9000"
+    volumes:
+      - ch_s2r1_data:/var/lib/clickhouse
+      - ch_s2r1_logs:/var/log/clickhouse-server
+      - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.xml:ro
+      - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+      - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
+      - ./config/clickhouse/macros/shard2-replica1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${CH_MEMORY_LIMIT:-2g}
+          cpus: "${CH_CPU_LIMIT:-1.5}"
+    depends_on:
+      keeper1:
+        condition: service_healthy
+      keeper2:
+        condition: service_healthy
+      keeper3:
+        condition: service_healthy
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  ch-s2r2:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-24.8}
+    container_name: ch-s2r2
+    hostname: ch-s2r2
+    ports:
+      - "${CH_S2R2_HTTP_PORT:-8126}:8123"
+      - "${CH_S2R2_TCP_PORT:-9003}:9000"
+    volumes:
+      - ch_s2r2_data:/var/lib/clickhouse
+      - ch_s2r2_logs:/var/log/clickhouse-server
+      - ./config/clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+      - ./config/clickhouse/users.xml:/etc/clickhouse-server/users.xml:ro
+      - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
+      - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
+      - ./config/clickhouse/macros/shard2-replica2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+    deploy:
+      resources:
+        limits:
+          memory: ${CH_MEMORY_LIMIT:-2g}
+          cpus: "${CH_CPU_LIMIT:-1.5}"
+    depends_on:
+      keeper1:
+        condition: service_healthy
+      keeper2:
+        condition: service_healthy
+      keeper3:
+        condition: service_healthy
+    networks:
+      - ch_network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+# ══════════════════════════════════════════════════════════════
+# VOLUMES
+# ══════════════════════════════════════════════════════════════
+# Named volumes persist data across container restarts.
+# Use 'docker compose down -v' to destroy all data.
+
+volumes:
+  keeper1_data:
+  keeper1_logs:
+  keeper2_data:
+  keeper2_logs:
+  keeper3_data:
+  keeper3_logs:
+  ch_s1r1_data:
+  ch_s1r1_logs:
+  ch_s2r1_data:
+  ch_s2r1_logs:
+  ch_s1r2_data:
+  ch_s1r2_logs:
+  ch_s2r2_data:
+  ch_s2r2_logs:
+
+# ══════════════════════════════════════════════════════════════
+# NETWORK
+# ══════════════════════════════════════════════════════════════
+# All containers share a bridge network so they can resolve
+# each other by hostname (keeper1, ch-s1r1, etc.)
+
+networks:
+  ch_network:
+    driver: bridge

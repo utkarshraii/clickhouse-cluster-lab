@@ -1,0 +1,8 @@
+<!-- Per-Node Macros: Shard 1, Replica 2 -->
+<clickhouse>
+    <macros>
+        <shard>01</shard>
+        <replica>ch-s1r2</replica>
+        <cluster>ch_cluster</cluster>
+    </macros>
+</clickhouse>
