@@ -42,6 +42,10 @@ pull: ## Pull latest images (version from .env)
 init: ## Create sample tables, insert data, verify replication
 	cluster/scripts/init-cluster.sh
 
+.PHONY: lab-engines
+lab-engines: ## Run the Table Engines hands-on lab (6 exercises)
+	cluster/scripts/lab-table-engines.sh
+
 .PHONY: health
 health: ## Run full cluster health check
 	cluster/scripts/health-check.sh

@@ -117,7 +117,7 @@ ClickHouse settings have interdependencies. Lowering one value can violate a con
 
 ---
 
-## Bug 4 (minor): `user_directories` missing from config.xml
+## Bug 4: `user_directories` missing from config.xml
 
 **Symptom**
 Servers crash with:
@@ -150,57 +150,10 @@ docker run --rm --entrypoint cat clickhouse/clickhouse-server:24.8 \
 
 ---
 
-## Debugging Techniques Used
-
-### 1. Read logs from Docker volumes when container is crash-looping
-When a container keeps restarting, `docker exec` doesn't work. Mount the log volume into an alpine container:
-```bash
-docker run --rm -v cluster_ch_s1r1_logs:/logs:ro alpine \
-  tail -50 /logs/clickhouse-server.err.log
-```
-
-### 2. Run the image interactively to capture startup errors
-Override the entrypoint to start the process manually and read logs:
-```bash
-docker run --rm --entrypoint bash clickhouse/clickhouse-keeper:24.8 -c \
-  "clickhouse-keeper --config /path/to/config & \
-   sleep 3; cat /var/log/clickhouse-keeper/clickhouse-keeper.err.log"
-```
-
-### 3. Check what the default image ships with
-Before replacing config files, see what the defaults contain:
-```bash
-docker run --rm --entrypoint cat clickhouse/clickhouse-server:24.8 \
-  /etc/clickhouse-server/config.xml
-```
-
-### 4. Check the entrypoint behavior
-The server image has a smart entrypoint that handles `chown`, user switching, etc. Read it to understand what it does:
-```bash
-docker run --rm --entrypoint cat clickhouse/clickhouse-server:24.8 /entrypoint.sh
-```
-
-### 5. Use `clickhouse-keeper-client` for keeper health checks
-The keeper image ships BusyBox `nc` which doesn't handle four-letter commands reliably. Use the built-in client instead:
-```bash
-docker exec keeper1 clickhouse-keeper-client -h localhost -p 9181 --query 'ruok'
-# Returns: imok
-```
-
-### 6. Exit code reference
-| Exit Code | Meaning |
-|-----------|---------|
-| 137 | SIGKILL (could be OOM or Docker stop timeout, check `docker inspect --format='{{.State.OOMKilled}}'`) |
-| 232 | ClickHouse-specific: user/permission mismatch |
-| 174 | ClickHouse-specific: config validation failure |
-| 36 | ClickHouse-specific: bad arguments / sanity check failure |
-
----
-
 ## Bug 5: Keeper health check failing — BusyBox `nc` incompatibility
 
 **Symptom**
-Keepers are actually running fine (logs show "Ready for connections") but Docker marks them as `unhealthy`. The health check command `echo ruok | nc localhost 9181 | grep -q imok` never succeeds.
+Keepers are actually running fine (logs show "Ready for connections") but Docker marks them as `unhealthy`. The health check command `echo ruok | nc localhost 9181 | grep -q imok` never succeeds. This caused CH server nodes to never start (they depend on `service_healthy` condition for keepers).
 
 **Root Cause**
 The keeper image uses BusyBox `nc`, not GNU netcat. BusyBox `nc` doesn't handle the four-letter command protocol reliably — it sends `ruok` but doesn't wait for / receive the `imok` response properly.
@@ -337,3 +290,103 @@ total_amount SimpleAggregateFunction(sum, Decimal(38, 2))
 
 **Lesson**
 `SimpleAggregateFunction(func, Type)` — the `Type` must match the **return type** of the aggregate function, not the input type. For `sum`, the return type is widened to avoid overflow.
+
+---
+
+## Bug 9: `health-check.sh` keeper check uses broken `nc`
+
+**Symptom**
+`make health` reports all containers as healthy (section 1), but section 2 (Keeper Quorum) shows:
+```
+✗ keeper1: not responding
+✗ keeper2: not responding
+✗ keeper3: not responding
+✗ No keeper leader elected!
+```
+Meanwhile the cluster is working fine — DDL, replication, and queries all succeed.
+
+**Root Cause**
+Same root cause as Bug 5: the `health-check.sh` script was using `echo ruok | nc localhost 9181` to check keepers. BusyBox `nc` inside the keeper container doesn't return the `imok` response reliably, so every check returns empty → "not responding".
+
+The Docker health check (Bug 5) was already fixed to use `clickhouse-keeper-client`, but the health-check.sh script still used the old `nc` approach.
+
+**How We Found It**
+The contradiction: Docker says keepers are healthy (section 1 passes), but the script's own keeper check (section 2) says they're not responding. The Docker health check was already fixed — the script just wasn't updated to match.
+
+**Fix**
+Updated `health-check.sh` to use `clickhouse-keeper-client` instead of `nc`:
+```bash
+# before (broken)
+response=$(docker exec "$keeper" bash -c 'echo ruok | nc localhost 9181' 2>/dev/null || echo "no_response")
+
+# after (working)
+response=$(docker exec "$keeper" clickhouse-keeper-client -h localhost -p 9181 --query 'ruok' 2>/dev/null || echo "no_response")
+```
+Same change for the `stat` command used to detect the leader.
+
+**Lesson**
+When you fix a bug in one place, grep for the same pattern everywhere else. The `nc` approach was used in two places (docker-compose health check and the health-check script) — fixing only one left the other broken.
+
+---
+
+## Debugging Techniques Used
+
+### 1. Read logs from Docker volumes when container is crash-looping
+When a container keeps restarting, `docker exec` doesn't work. Mount the log volume into an alpine container:
+```bash
+docker run --rm -v cluster_ch_s1r1_logs:/logs:ro alpine \
+  tail -50 /logs/clickhouse-server.err.log
+```
+
+### 2. Run the image interactively to capture startup errors
+Override the entrypoint to start the process manually and read logs:
+```bash
+docker run --rm --entrypoint bash clickhouse/clickhouse-keeper:24.8 -c \
+  "clickhouse-keeper --config /path/to/config & \
+   sleep 3; cat /var/log/clickhouse-keeper/clickhouse-keeper.err.log"
+```
+
+### 3. Check what the default image ships with
+Before replacing config files, see what the defaults contain:
+```bash
+# Server config
+docker run --rm --entrypoint cat clickhouse/clickhouse-server:24.8 \
+  /etc/clickhouse-server/config.xml
+
+# Docker-injected user overrides
+docker exec ch-s1r1 ls /etc/clickhouse-server/users.d/
+docker exec ch-s1r1 ls /etc/clickhouse-server/config.d/
+```
+
+### 4. Check the entrypoint behavior
+The server image has a smart entrypoint that handles `chown`, user switching, etc. Read it to understand what it does:
+```bash
+docker run --rm --entrypoint cat clickhouse/clickhouse-server:24.8 /entrypoint.sh
+```
+
+### 5. Use `clickhouse-keeper-client` for keeper health checks
+The keeper image ships BusyBox `nc` which doesn't handle four-letter commands reliably. Use the built-in client instead:
+```bash
+docker exec keeper1 clickhouse-keeper-client -h localhost -p 9181 --query 'ruok'
+# Returns: imok
+
+docker exec keeper1 clickhouse-keeper-client -h localhost -p 9181 --query 'stat'
+# Returns: leader/follower status, connections, latency
+```
+
+### 6. Check listening ports inside a container
+```bash
+docker exec keeper1 netstat -tlnp
+# Look for 0.0.0.0:PORT (accessible from other containers)
+# vs 127.0.0.1:PORT (localhost only — other containers can't reach it)
+```
+
+### 7. Exit code reference
+| Exit Code | Meaning |
+|-----------|---------|
+| 36 | ClickHouse: bad arguments / sanity check failure |
+| 137 | SIGKILL — check `docker inspect --format='{{.State.OOMKilled}}'` to distinguish OOM from config crash |
+| 174 | ClickHouse: config validation failure |
+| 232 | ClickHouse: user/permission mismatch |
+| 253 | ClickHouse: replica already exists in Keeper (stale ZK state after failed DROP) |
+| 516 | ClickHouse: authentication failed |
