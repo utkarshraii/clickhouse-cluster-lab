@@ -46,6 +46,10 @@ init: ## Create sample tables, insert data, verify replication
 lab-engines: ## Run the Table Engines hands-on lab (6 exercises)
 	cluster/scripts/lab-table-engines.sh
 
+.PHONY: lab-replication
+lab-replication: ## Run the Replication & Clustering hands-on lab (6 exercises)
+	cluster/scripts/lab-replication.sh
+
 .PHONY: health
 health: ## Run full cluster health check
 	cluster/scripts/health-check.sh
