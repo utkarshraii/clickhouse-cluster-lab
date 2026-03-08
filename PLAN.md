@@ -18,7 +18,7 @@ Update the **Status** column as you complete each phase.
 | 6 | Data Modeling & Query Optimization — ORDER BY, skip indexes, MVs | `notes/05-query-optimization.md`, `notes/10-optimization-lab.md` | `make lab-optimization` | ✅ Done |
 | 7 | Infrastructure & Operations — backup, TTL, parts, mutations, monitoring | `notes/11-operations.md`, `notes/12-operations-lab.md` | `make lab-operations` | ✅ Done |
 | 8 | Advanced Topics — projections, deletes, window funcs, dictionaries, buffers | `notes/13-advanced-topics.md`, `notes/14-advanced-lab.md` | `make lab-advanced` | ✅ Done |
-| 9 | Learning Path & Resources — projects, decision matrix | — | — | ⬜ Next |
+| 9 | Learning Path & Resources — decision matrix, projects, resources | `notes/15-decision-matrix.md`, `notes/16-project-ideas.md`, `notes/17-resources.md` | — | ✅ Done |
 
 ---
 
@@ -120,21 +120,14 @@ Update the **Status** column as you complete each phase.
 
 ---
 
-### Phase 9 — Learning Path & Resources ⬜
+### Phase 9 — Learning Path & Resources ✅
 
 **Goal:** Synthesize everything into decision frameworks and project ideas.
 
-**TODO:**
-- [ ] `notes/15-decision-matrix.md` — When to use what (engines, sharding keys, indexes, MVs)
-- [ ] `notes/16-project-ideas.md` — 3-5 hands-on projects to build real systems
-- [ ] `notes/17-resources.md` — Official docs, blogs, talks, community links
-
-**Project ideas:**
-1. Real-time analytics dashboard — event ingestion → MV → pre-aggregated queries
-2. User behavior tracking — hash-sharded, per-user queries, session analysis
-3. Log aggregation system — high-cardinality, TTL, compression optimization
-4. Time-series metrics store — rollup MVs, multi-resolution storage
-5. A/B testing platform — statistical functions, window functions, experiment analysis
+**Deliverables:**
+- [x] `notes/15-decision-matrix.md` — 12 decision matrices (engines, ORDER BY, partitioning, skip indexes, projections vs MVs, sharding, compression, dictionaries, delete strategy, ingestion, monitoring, backup)
+- [x] `notes/16-project-ideas.md` — 5 hands-on projects (analytics dashboard, user behavior, log aggregation, time-series metrics, A/B testing) with schemas and key queries
+- [x] `notes/17-resources.md` — Official docs, learning resources, tools, community, sample datasets
 
 ---
 
@@ -171,5 +164,8 @@ clickhouse/
     ├── 11-operations.md                ← Phase 7
     ├── 12-operations-lab.md            ← Phase 7
     ├── 13-advanced-topics.md           ← Phase 8
-    └── 14-advanced-lab.md              ← Phase 8
+    ├── 14-advanced-lab.md              ← Phase 8
+    ├── 15-decision-matrix.md           ← Phase 9
+    ├── 16-project-ideas.md             ← Phase 9
+    └── 17-resources.md                 ← Phase 9
 ```
