@@ -50,6 +50,14 @@ lab-engines: ## Run the Table Engines hands-on lab (6 exercises)
 lab-replication: ## Run the Replication & Clustering hands-on lab (6 exercises)
 	cluster/scripts/lab-replication.sh
 
+.PHONY: lab-metadata
+lab-metadata: ## Run the System Metadata & Debugging hands-on lab (6 exercises)
+	cluster/scripts/lab-metadata.sh
+
+.PHONY: lab-optimization
+lab-optimization: ## Run the Data Modeling & Query Optimization hands-on lab (6 exercises)
+	cluster/scripts/lab-optimization.sh
+
 .PHONY: health
 health: ## Run full cluster health check
 	cluster/scripts/health-check.sh
