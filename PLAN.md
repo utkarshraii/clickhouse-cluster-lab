@@ -131,6 +131,45 @@ Update the **Status** column as you complete each phase.
 
 ---
 
+## What's Next
+
+All 9 phases are complete. Here are three paths to continue learning:
+
+### Path A: Build a Project (Deepen Skills)
+
+Pick Project 1 (Analytics Dashboard) from `notes/16-project-ideas.md` and build it end-to-end. Reading notes and running labs is different from designing a schema from scratch, hitting real problems, and iterating.
+
+- [ ] Design schema from scratch (engine, ORDER BY, partitioning, TTL)
+- [ ] Build ingestion pipeline (batch inserts or async)
+- [ ] Create MVs for dashboard rollups
+- [ ] Add dictionaries for enrichment
+- [ ] Write parameterized views for common queries
+- [ ] Load-test with realistic data volumes
+
+### Path B: Capstone Lab (Test Knowledge)
+
+Write a `lab-capstone.sh` that presents a real-world scenario and requires making all the right decisions without guidance.
+
+- [ ] Scenario: "50M rows/day of clickstream data, most queries filter by user_id, 90-day retention"
+- [ ] Choose: engine, ORDER BY, partitioning, TTL, sharding key, skip indexes, MVs
+- [ ] Implement the schema and ingestion
+- [ ] Benchmark query performance
+- [ ] Compare against a reference solution
+- [ ] Document trade-offs and alternatives considered
+
+### Path C: Production Monitoring (Production Exposure)
+
+Set up Grafana + ClickHouse datasource against the cluster. Build a real monitoring dashboard using the `system.metrics`/`events`/`asynchronous_metrics` queries from Exercise 6 of the operations lab.
+
+- [ ] Add Grafana container to `docker-compose.yml`
+- [ ] Configure ClickHouse datasource plugin
+- [ ] Build panels: active queries, memory usage, part counts, merge activity
+- [ ] Build panels: replication lag across all 4 nodes
+- [ ] Build panels: disk utilization, error rate, insert throughput
+- [ ] Set up alerts (MaxPartCountForPartition > 200, disk < 20%)
+
+---
+
 ## File Map
 
 ```
