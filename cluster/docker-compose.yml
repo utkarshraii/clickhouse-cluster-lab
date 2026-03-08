@@ -122,6 +122,7 @@ services:
       - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
       - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
       - ./config/clickhouse/macros/shard1-replica1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./config/clickhouse/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
     deploy:
       resources:
         limits:
@@ -159,6 +160,7 @@ services:
       - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
       - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
       - ./config/clickhouse/macros/shard1-replica2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./config/clickhouse/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
     deploy:
       resources:
         limits:
@@ -196,6 +198,7 @@ services:
       - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
       - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
       - ./config/clickhouse/macros/shard2-replica1.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./config/clickhouse/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
     deploy:
       resources:
         limits:
@@ -233,6 +236,7 @@ services:
       - ./config/clickhouse/default-user-override.xml:/etc/clickhouse-server/users.d/default-user.xml:ro
       - ./config/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
       - ./config/clickhouse/macros/shard2-replica2.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./config/clickhouse/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
     deploy:
       resources:
         limits:

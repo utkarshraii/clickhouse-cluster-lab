@@ -58,6 +58,14 @@ lab-metadata: ## Run the System Metadata & Debugging hands-on lab (6 exercises)
 lab-optimization: ## Run the Data Modeling & Query Optimization hands-on lab (6 exercises)
 	cluster/scripts/lab-optimization.sh
 
+.PHONY: lab-operations
+lab-operations: ## Run the Infrastructure & Operations hands-on lab (6 exercises)
+	cluster/scripts/lab-operations.sh
+
+.PHONY: lab-advanced
+lab-advanced: ## Run the Advanced Topics hands-on lab (6 exercises)
+	cluster/scripts/lab-advanced.sh
+
 .PHONY: health
 health: ## Run full cluster health check
 	cluster/scripts/health-check.sh

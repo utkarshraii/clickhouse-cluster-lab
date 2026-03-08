@@ -14,11 +14,11 @@ Update the **Status** column as you complete each phase.
 | 2 | Architecture Deep Dive — Storage, query pipeline, primary index | `notes/01-architecture.md`, `notes/02-config-reference.md` | `make init` + `make health` | ✅ Done |
 | 3 | Table Engines — MergeTree family | `notes/07-table-engines-lab.md` | `make lab-engines` | ✅ Done |
 | 4 | Replication & Clustering — shards, replicas, Keeper, Distributed | `notes/03-cluster-and-replication.md`, `notes/08-replication-lab.md` | `make lab-replication` | ✅ Done |
-| 5 | Metadata — system.* tables for operational visibility | `notes/04-debugging-and-monitoring.md` (written) | Lab script needed | ⬜ Next |
-| 6 | Data Modeling & Query Optimization — ORDER BY, skip indexes, MVs | `notes/05-query-optimization.md` (written) | Lab script needed | ⬜ |
-| 7 | Infrastructure & Operations — deployment, monitoring, backup | Partial (`notes/06-cluster-setup-troubleshooting.md`) | Lab script needed | ⬜ |
-| 8 | Advanced Topics — projections, lightweight deletes, window functions | — | — | ⬜ |
-| 9 | Learning Path & Resources — projects, decision matrix | — | — | ⬜ |
+| 5 | Metadata — system.* tables for operational visibility | `notes/04-debugging-and-monitoring.md`, `notes/09-metadata-lab.md` | `make lab-metadata` | ✅ Done |
+| 6 | Data Modeling & Query Optimization — ORDER BY, skip indexes, MVs | `notes/05-query-optimization.md`, `notes/10-optimization-lab.md` | `make lab-optimization` | ✅ Done |
+| 7 | Infrastructure & Operations — backup, TTL, parts, mutations, monitoring | `notes/11-operations.md`, `notes/12-operations-lab.md` | `make lab-operations` | ✅ Done |
+| 8 | Advanced Topics — projections, deletes, window funcs, dictionaries, buffers | `notes/13-advanced-topics.md`, `notes/14-advanced-lab.md` | `make lab-advanced` | ✅ Done |
+| 9 | Learning Path & Resources — projects, decision matrix | — | — | ⬜ Next |
 
 ---
 
@@ -71,87 +71,52 @@ Update the **Status** column as you complete each phase.
 
 ---
 
-### Phase 5 — Metadata (system.* tables) ⬜
+### Phase 5 — Metadata (system.* tables) ✅
 
 **Goal:** Use system tables for operational visibility — find slow queries, detect merge problems, monitor replication, debug issues.
 
-**Existing theory:** `notes/04-debugging-and-monitoring.md` (404 lines, covers system.query_log, system.parts, system.replicas, system.merges, system.errors, EXPLAIN)
-
-**TODO:**
-- [ ] `cluster/scripts/lab-metadata.sh` — Hands-on exercises querying system tables
-- [ ] `notes/09-metadata-lab.md` — Lab reference notes
-- [ ] `Makefile` target: `lab-metadata`
-
-**Suggested exercises:**
-1. system.query_log — find slow queries, failed queries, read/write stats
-2. system.parts — inspect part structure, detect too-many-parts, partition pruning
-3. system.replicas — replication lag, queue depth, leader status across shards
-4. system.merges — watch a merge in progress, understand merge triggers
-5. system.columns — column sizes, compression ratios, type introspection
-6. EXPLAIN — read query plans, understand pipeline stages, identify bottlenecks
+**Deliverables:**
+- [x] `notes/04-debugging-and-monitoring.md` — Theory (system.query_log, system.parts, system.replicas, system.merges, system.errors, EXPLAIN)
+- [x] `cluster/scripts/lab-metadata.sh` — 6 exercises (query_log, parts, columns, merges/metrics, replicas, EXPLAIN)
+- [x] `notes/09-metadata-lab.md` — Lab reference notes
+- [x] `Makefile` target: `lab-metadata`
 
 ---
 
-### Phase 6 — Data Modeling & Query Optimization ⬜
+### Phase 6 — Data Modeling & Query Optimization ✅
 
 **Goal:** Design ORDER BY keys for real workloads, use skip indexes, build materialized views, optimize query performance.
 
-**Existing theory:** `notes/05-query-optimization.md` (379 lines, covers ORDER BY strategy, skip indexes, projections, MVs, EXPLAIN, performance patterns)
-
-**TODO:**
-- [ ] `cluster/scripts/lab-optimization.sh` — Hands-on optimization exercises
-- [ ] `notes/10-optimization-lab.md` — Lab reference notes
-- [ ] `Makefile` target: `lab-optimization`
-
-**Suggested exercises:**
-1. ORDER BY key design — compare query performance with good vs bad key choices
-2. Skip indexes (bloom_filter, minmax, set) — measure granule skipping
-3. Projections — create alternative sort orders, verify automatic projection selection
-4. Materialized Views — build a pre-aggregation pipeline, compare query speed
-5. PREWHERE vs WHERE — understand automatic optimization and manual control
-6. Real-world scenario — model a time-series analytics workload end-to-end
+**Deliverables:**
+- [x] `notes/05-query-optimization.md` — Theory (ORDER BY strategy, skip indexes, projections, MVs, EXPLAIN, performance patterns)
+- [x] `cluster/scripts/lab-optimization.sh` — 6 exercises (ORDER BY good/bad, PREWHERE, skip indexes, projections, MVs, full optimization workflow)
+- [x] `notes/10-optimization-lab.md` — Lab reference notes
+- [x] `Makefile` target: `lab-optimization`
 
 ---
 
-### Phase 7 — Infrastructure & Operations ⬜
+### Phase 7 — Infrastructure & Operations ✅
 
-**Goal:** Production readiness — monitoring, backup/restore, capacity planning, operational runbooks.
+**Goal:** Production readiness — backup/restore, TTL, part management, mutations, monitoring.
 
-**Existing notes:** `notes/06-cluster-setup-troubleshooting.md` (392 lines, real troubleshooting from cluster setup)
-
-**TODO:**
-- [ ] `notes/11-operations.md` — Production operations guide (backup, monitoring, capacity, upgrades)
-- [ ] `cluster/scripts/lab-operations.sh` — Hands-on operations exercises
-- [ ] `notes/12-operations-lab.md` — Lab reference notes
-- [ ] `Makefile` target: `lab-operations`
-
-**Suggested exercises:**
-1. Backup & restore — `clickhouse-backup` or built-in BACKUP/RESTORE commands
-2. TTL management — set up auto-expiry, verify data removal after merge
-3. Disk management — inspect disk usage, understand part lifecycle
-4. Too-many-parts — simulate the problem, understand the 300-part threshold
-5. Mutations — ALTER UPDATE/DELETE, track progress in system.mutations
-6. Monitoring integration — key metrics to export (Prometheus/Grafana patterns)
+**Deliverables:**
+- [x] `notes/11-operations.md` — Production operations guide (backup, TTL, parts, mutations, monitoring)
+- [x] `cluster/scripts/lab-operations.sh` — 6 exercises (backup/restore, TTL, disk/parts, too-many-parts, mutations, monitoring dashboard)
+- [x] `notes/12-operations-lab.md` — Lab reference notes
+- [x] `cluster/config/clickhouse/backups.xml` — Backup engine config (required for BACKUP/RESTORE SQL)
+- [x] `Makefile` target: `lab-operations`
 
 ---
 
-### Phase 8 — Advanced Topics ⬜
+### Phase 8 — Advanced Topics ✅
 
 **Goal:** Power-user features for complex workloads.
 
-**TODO:**
-- [ ] `notes/13-advanced-topics.md` — Theory notes
-- [ ] `cluster/scripts/lab-advanced.sh` — Hands-on exercises
-- [ ] `notes/14-advanced-lab.md` — Lab reference notes
-- [ ] `Makefile` target: `lab-advanced`
-
-**Suggested exercises:**
-1. Projections deep dive — multiple projections per table, storage cost analysis
-2. Lightweight deletes (`DELETE FROM`) — compare with mutations, verify row masking
-3. Window functions — running totals, rankings, session analysis
-4. Dictionaries — external data enrichment, layout types, refresh strategies
-5. Parameterized views — reusable query templates
-6. Buffer tables + async inserts — high-frequency ingestion patterns
+**Deliverables:**
+- [x] `notes/13-advanced-topics.md` — Theory (projections deep dive, lightweight deletes, window functions, dictionaries, parameterized views, buffer tables + async inserts)
+- [x] `cluster/scripts/lab-advanced.sh` — 6 exercises (projections storage cost, ALTER DELETE vs DELETE FROM, window functions, dictionaries with range_hashed, parameterized views, buffer + async inserts)
+- [x] `notes/14-advanced-lab.md` — Lab reference notes
+- [x] `Makefile` target: `lab-advanced`
 
 ---
 
@@ -187,14 +152,24 @@ clickhouse/
 │       ├── init-cluster.sh              ← Phase 2
 │       ├── health-check.sh              ← Phase 2
 │       ├── lab-table-engines.sh         ← Phase 3
-│       └── lab-replication.sh           ← Phase 4
+│       ├── lab-replication.sh           ← Phase 4
+│       ├── lab-metadata.sh             ← Phase 5
+│       ├── lab-optimization.sh         ← Phase 6
+│       ├── lab-operations.sh           ← Phase 7
+│       └── lab-advanced.sh            ← Phase 8
 └── notes/
     ├── 01-architecture.md               ← Phase 1-2
     ├── 02-config-reference.md           ← Phase 2
     ├── 03-cluster-and-replication.md    ← Phase 4
-    ├── 04-debugging-and-monitoring.md   ← Phase 5 (theory ready)
-    ├── 05-query-optimization.md         ← Phase 6 (theory ready)
-    ├── 06-cluster-setup-troubleshooting.md ← Phase 7 (partial)
+    ├── 04-debugging-and-monitoring.md   ← Phase 5
+    ├── 05-query-optimization.md         ← Phase 6
+    ├── 06-cluster-setup-troubleshooting.md ← Phase 7 (troubleshooting logs)
     ├── 07-table-engines-lab.md          ← Phase 3
-    └── 08-replication-lab.md            ← Phase 4
+    ├── 08-replication-lab.md            ← Phase 4
+    ├── 09-metadata-lab.md              ← Phase 5
+    ├── 10-optimization-lab.md          ← Phase 6
+    ├── 11-operations.md                ← Phase 7
+    ├── 12-operations-lab.md            ← Phase 7
+    ├── 13-advanced-topics.md           ← Phase 8
+    └── 14-advanced-lab.md              ← Phase 8
 ```
